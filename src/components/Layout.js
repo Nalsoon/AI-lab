@@ -4,7 +4,7 @@ import {
   HomeIcon, 
   PlusIcon, 
   ChatBubbleLeftRightIcon,
-  TargetIcon,
+  FlagIcon,
   ChartBarIcon, 
   UserIcon,
   CogIcon 
@@ -15,32 +15,35 @@ const Layout = ({ children }) => {
   
   const navigation = [
     { name: 'Dashboard', href: '/', icon: HomeIcon },
-    { name: 'Log Food', href: '/log-food', icon: PlusIcon },
-    { name: 'Natural Log', href: '/natural-log', icon: ChatBubbleLeftRightIcon },
-    { name: 'Goals', href: '/goals', icon: TargetIcon },
+    { name: 'Goals', href: '/goals', icon: FlagIcon },
     { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
     { name: 'Profile', href: '/profile', icon: UserIcon },
     { name: 'Settings', href: '/settings', icon: CogIcon },
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
       {/* Mobile navigation */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-        <div className="flex justify-around">
+      <div className="mobile-nav">
+        <div style={{ display: 'flex', justifyContent: 'space-around' }}>
           {navigation.map((item) => {
             const isActive = location.pathname === item.href
             return (
               <Link
                 key={item.name}
                 to={item.href}
-                className={`flex flex-col items-center py-2 px-3 text-xs font-medium ${
-                  isActive
-                    ? 'text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '0.5rem 0.75rem',
+                  fontSize: '0.75rem',
+                  fontWeight: '500',
+                  color: isActive ? '#2563eb' : '#6b7280',
+                  textDecoration: 'none'
+                }}
               >
-                <item.icon className="h-6 w-6 mb-1" />
+                <item.icon style={{ height: '1.5rem', width: '1.5rem', marginBottom: '0.25rem' }} />
                 <span>{item.name}</span>
               </Link>
             )
@@ -49,42 +52,63 @@ const Layout = ({ children }) => {
       </div>
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0">
-        <div className="flex flex-col flex-grow bg-white border-r border-gray-200 pt-5 pb-4 overflow-y-auto">
-          <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-bold text-gray-900">Nutrition Tracker</h1>
+      <div className="desktop-sidebar">
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          flexGrow: 1, 
+          backgroundColor: 'white', 
+          borderRight: '1px solid #e5e7eb', 
+          paddingTop: '1.25rem', 
+          paddingBottom: '1rem', 
+          overflowY: 'auto' 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, padding: '0 1rem' }}>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#111827' }}>Nutrition Tracker</h1>
           </div>
-          <div className="mt-5 flex-grow flex flex-col">
-            <nav className="flex-1 px-2 space-y-1">
-              {navigation.map((item) => {
-                const isActive = location.pathname === item.href
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                      isActive
-                        ? 'bg-blue-100 text-blue-900'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  >
-                    <item.icon
-                      className={`mr-3 h-6 w-6 ${
-                        isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
-                      }`}
-                    />
-                    {item.name}
-                  </Link>
-                )
-              })}
+          <div style={{ marginTop: '1.25rem', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+            <nav style={{ flex: 1, padding: '0 0.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                {navigation.map((item) => {
+                  const isActive = location.pathname === item.href
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.5rem',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        borderRadius: '0.375rem',
+                        backgroundColor: isActive ? '#dbeafe' : 'transparent',
+                        color: isActive ? '#1e3a8a' : '#6b7280',
+                        textDecoration: 'none',
+                        transition: 'all 0.15s ease-in-out'
+                      }}
+                    >
+                      <item.icon
+                        style={{
+                          marginRight: '0.75rem',
+                          height: '1.5rem',
+                          width: '1.5rem',
+                          color: isActive ? '#3b82f6' : '#9ca3af'
+                        }}
+                      />
+                      {item.name}
+                    </Link>
+                  )
+                })}
+              </div>
             </nav>
           </div>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64 flex flex-col flex-1">
-        <main className="flex-1 pb-16 lg:pb-0">
+      <div className="main-content">
+        <main style={{ flex: 1, paddingBottom: '4rem' }}>
           {children}
         </main>
       </div>

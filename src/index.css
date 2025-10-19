@@ -1,3 +1,5 @@
+/* Tailwind CSS is loaded via CDN in public/index.html */
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',

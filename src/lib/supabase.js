@@ -4,6 +4,20 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'your-supabase-url'
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'your-supabase-anon-key'
 
+// Debug environment variables
+console.log('🔧 Supabase Config Check:', {
+  url: supabaseUrl,
+  keyPresent: !!supabaseAnonKey,
+  keyLength: supabaseAnonKey?.length || 0,
+  urlValid: supabaseUrl !== 'your-supabase-url',
+  keyValid: supabaseAnonKey !== 'your-supabase-anon-key'
+});
+
+// Check if we have valid configuration
+if (supabaseUrl === 'your-supabase-url' || supabaseAnonKey === 'your-supabase-anon-key') {
+  console.error('❌ Supabase configuration is using default values. Please check your .env.local file.');
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Database helper functions
