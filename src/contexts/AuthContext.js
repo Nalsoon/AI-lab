@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { isSessionValid, sessionError, startSessionMonitoring, stopSessionMonitoring } = useSessionManager();
+  const { isSessionValid, startSessionMonitoring, stopSessionMonitoring } = useSessionManager();
 
   useEffect(() => {
     console.log('AuthContext: Getting initial session...')
@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }) => {
           subscription.unsubscribe();
           stopSessionMonitoring();
         };
-      }, []);
+      }, [startSessionMonitoring, stopSessionMonitoring]);
 
       // Handle session validation
       useEffect(() => {

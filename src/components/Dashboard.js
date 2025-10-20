@@ -40,31 +40,6 @@ const Dashboard = () => {
   const [sessionError, setSessionError] = useState(null)
   const [showDebugPanel, setShowDebugPanel] = useState(false)
 
-  useEffect(() => {
-    if (user) {
-      loadDailyData()
-    }
-  }, [user, today, loadDailyData])
-
-  // Add periodic session check to prevent timeout issues
-  useEffect(() => {
-    if (!user) return
-
-    const sessionCheckInterval = setInterval(async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-          console.log('Dashboard: Session expired, user will be redirected to login')
-          // The AuthContext will handle this automatically
-        }
-      } catch (error) {
-        console.error('Dashboard: Session check failed:', error)
-      }
-    }, 30000) // Check every 30 seconds
-
-    return () => clearInterval(sessionCheckInterval)
-  }, [user])
-
   const loadDailyData = useCallback(async () => {
     if (!user) {
       console.log('Dashboard: No user, skipping data load');
@@ -130,7 +105,32 @@ const Dashboard = () => {
         } finally {
           setLoading(false)
         }
-  }, [user, retryCount])
+  }, [user, retryCount, today])
+
+  useEffect(() => {
+    if (user) {
+      loadDailyData()
+    }
+  }, [user, today, loadDailyData])
+
+  // Add periodic session check to prevent timeout issues
+  useEffect(() => {
+    if (!user) return
+
+    const sessionCheckInterval = setInterval(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          console.log('Dashboard: Session expired, user will be redirected to login')
+          // The AuthContext will handle this automatically
+        }
+      } catch (error) {
+        console.error('Dashboard: Session check failed:', error)
+      }
+    }, 30000) // Check every 30 seconds
+
+    return () => clearInterval(sessionCheckInterval)
+  }, [user])
 
   const handleMealLogged = () => {
     // Refresh dashboard data when a new meal is logged
@@ -211,30 +211,6 @@ const Dashboard = () => {
     setShowEditModal(true)
   }
 
-  const handleMealSaved = (updatedMeal) => {
-    // Update the meals list with the edited meal
-    setMeals(prev => prev.map(meal => 
-      meal.id === updatedMeal.id ? updatedMeal : meal
-    ))
-    
-    // Recalculate totals
-    const newTotals = meals.reduce((acc, meal) => {
-      if (meal.id === updatedMeal.id) {
-        acc.calories += updatedMeal.total_calories || 0
-        acc.protein += updatedMeal.total_protein || 0
-        acc.carbs += updatedMeal.total_carbs || 0
-        acc.fat += updatedMeal.total_fat || 0
-      } else {
-        acc.calories += meal.total_calories || 0
-        acc.protein += meal.total_protein || 0
-        acc.carbs += meal.total_carbs || 0
-        acc.fat += meal.total_fat || 0
-      }
-      return acc
-    }, { calories: 0, protein: 0, carbs: 0, fat: 0 })
-    
-    setDailyTotals(newTotals)
-  }
 
   const netCalories = dailyTotals.calories - activityData.activeCalories
 
