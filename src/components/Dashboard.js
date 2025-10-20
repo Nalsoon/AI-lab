@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { FireIcon, BoltIcon, ArrowTrendingUpIcon, ScaleIcon, CalendarIcon, ArrowPathIcon, PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
-import { db } from '../lib/supabase'
+import { db, supabase } from '../lib/supabase'
 import LogFoodModal from './LogFoodModal'
 
 const Dashboard = () => {
@@ -31,6 +31,7 @@ const Dashboard = () => {
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [editingMeal, setEditingMeal] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     if (user) {
@@ -38,23 +39,49 @@ const Dashboard = () => {
     }
   }, [user, today])
 
-  const loadDailyData = async () => {
+  // Add periodic session check to prevent timeout issues
+  useEffect(() => {
     if (!user) return
+
+    const sessionCheckInterval = setInterval(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          console.log('Dashboard: Session expired, user will be redirected to login')
+          // The AuthContext will handle this automatically
+        }
+      } catch (error) {
+        console.error('Dashboard: Session check failed:', error)
+      }
+    }, 30000) // Check every 30 seconds
+
+    return () => clearInterval(sessionCheckInterval)
+  }, [user])
+
+  const loadDailyData = async () => {
+    if (!user) {
+      console.log('Dashboard: No user, skipping data load');
+      return
+    }
     
+    console.log('Dashboard: Loading daily data for user:', user.id);
     setLoading(true)
     const dateStr = format(today, 'yyyy-MM-dd')
     const userId = user.id
 
     try {
       // Load daily totals
+      console.log('Dashboard: Loading daily totals...');
       const totals = await db.getDailyTotals(userId, dateStr)
       setDailyTotals(totals)
 
       // Load meals
+      console.log('Dashboard: Loading meals...');
       const dailyMeals = await db.getDailyMeals(userId, dateStr)
       setMeals(dailyMeals)
 
       // Load activity data
+      console.log('Dashboard: Loading activity data...');
       const activity = await db.getActivityData(userId, dateStr)
       if (activity.length > 0) {
         const combined = activity.reduce((acc, item) => ({
@@ -66,12 +93,30 @@ const Dashboard = () => {
       }
 
       // Load daily goals
+      console.log('Dashboard: Loading daily goals...');
       const goals = await db.getDailyGoals(userId, dateStr)
       if (goals) {
         setDailyGoals(goals)
       }
+      
+      console.log('Dashboard: Data loaded successfully');
+      setRetryCount(0); // Reset retry count on successful load
     } catch (error) {
-      console.error('Error loading daily data:', error)
+      console.error('Dashboard: Error loading daily data:', error);
+      
+      // Check if it's an authentication error
+      if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session')) {
+        console.log('Dashboard: Authentication error detected, user may need to re-login');
+        // The AuthContext will handle this automatically via onAuthStateChange
+      } else if (retryCount < 3) {
+        // Retry for non-auth errors
+        console.log(`Dashboard: Retrying data load (attempt ${retryCount + 1}/3)`);
+        setRetryCount(prev => prev + 1);
+        setTimeout(() => {
+          loadDailyData();
+        }, 2000); // Wait 2 seconds before retry
+        return; // Don't set loading to false yet
+      }
     } finally {
       setLoading(false)
     }

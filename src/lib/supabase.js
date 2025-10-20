@@ -18,7 +18,13 @@ if (supabaseUrl === 'your-supabase-url' || supabaseAnonKey === 'your-supabase-an
   console.error('❌ Supabase configuration is using default values. Please check your .env.local file.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false
+  }
+})
 
 // Database helper functions
 export const db = {

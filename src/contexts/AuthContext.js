@@ -44,12 +44,31 @@ export const AuthProvider = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await loadUserProfile(session.user.id);
+      console.log('AuthContext: Auth state change:', event, session?.user?.id);
+      
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        console.log('AuthContext: User signed out or token refreshed');
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await loadUserProfile(session.user.id);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
+      } else if (event === 'SIGNED_IN') {
+        console.log('AuthContext: User signed in');
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await loadUserProfile(session.user.id);
+        }
       } else {
-        setProfile(null);
-        setLoading(false);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await loadUserProfile(session.user.id);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
       }
     });
 
