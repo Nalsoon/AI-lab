@@ -42,96 +42,90 @@ const Dashboard = () => {
   const [dataLoadError, setDataLoadError] = useState(null)
   const retryCountRef = useRef(0)
 
-  const loadDailyData = async () => {
-    if (!user) {
-      console.log('Dashboard: No user, skipping data load');
-      return
-    }
-    
-    console.log('Dashboard: Loading daily data for user:', user.id);
-    setLoading(true)
-    const dateStr = format(today, 'yyyy-MM-dd')
-    const userId = user.id
-
-    try {
-      // Load daily totals
-      console.log('Dashboard: Loading daily totals...');
-      const totals = await db.getDailyTotals(userId, dateStr)
-      setDailyTotals(totals)
-
-      // Load meals
-      console.log('Dashboard: Loading meals...');
-      const dailyMeals = await db.getDailyMeals(userId, dateStr)
-      setMeals(dailyMeals)
-
-      // Load activity data
-      console.log('Dashboard: Loading activity data...');
-      const activity = await db.getActivityData(userId, dateStr)
-      if (activity.length > 0) {
-        const combined = activity.reduce((acc, item) => ({
-          activeCalories: acc.activeCalories + (item.active_calories || 0),
-          totalCalories: acc.totalCalories + (item.total_calories || 0),
-          steps: acc.steps + (item.steps || 0)
-        }), { activeCalories: 0, totalCalories: 0, steps: 0 })
-        setActivityData(combined)
-      }
-
-      // Load daily goals
-      console.log('Dashboard: Loading daily goals...');
-      const goals = await db.getDailyGoals(userId, dateStr)
-      if (goals) {
-        setDailyGoals(goals)
-      }
-      
-      console.log('Dashboard: Data loaded successfully');
-      retryCountRef.current = 0; // Reset retry count on successful load
-      setRetryCount(0);
-      setDataLoadError(null); // Clear any previous errors
-    } catch (error) {
-      console.error('Dashboard: Error loading daily data:', error);
-      
-      // Check if it's an authentication error
-      if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session') || error.message?.includes('401') || error.message?.includes('403')) {
-        console.log('Dashboard: Authentication error detected, user may need to re-login');
-        setSessionError('Session expired. Please sign in again.');
-        // The AuthContext will handle this automatically via onAuthStateChange
-      } else if (retryCountRef.current < 3) {
-        // Retry for non-auth errors
-        retryCountRef.current += 1;
-        setRetryCount(retryCountRef.current);
-        console.log(`Dashboard: Retrying data load (attempt ${retryCountRef.current}/3)`);
-        setTimeout(() => {
-          loadDailyData();
-        }, 2000); // Wait 2 seconds before retry
-        return; // Don't set loading to false yet
-      } else {
-        // Only show session error for persistent failures, not temporary network issues
-        console.log('Dashboard: Max retries reached, but not a session error');
-        setDataLoadError('Unable to load data. Please check your connection and try again.');
-        setLoading(false);
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
 
   useEffect(() => {
-    if (user) {
-      // Set a timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
-        if (loading) {
-          console.log('Dashboard: Loading timeout, setting loading to false');
-          setLoading(false);
-          setDataLoadError('Loading timed out. Please try refreshing the page.');
-        }
-      }, 10000); // 10 second timeout
-
-      loadDailyData();
-
-      return () => clearTimeout(timeoutId);
-    } else {
+    if (!user) {
       setLoading(false);
+      return;
     }
+
+    // Set a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.log('Dashboard: Loading timeout, setting loading to false');
+        setLoading(false);
+        setDataLoadError('Loading timed out. Please try refreshing the page.');
+      }
+    }, 10000); // 10 second timeout
+
+    // Load data directly in useEffect to avoid circular dependencies
+    const loadData = async () => {
+      console.log('Dashboard: Loading daily data for user:', user.id);
+      setLoading(true);
+      const dateStr = format(today, 'yyyy-MM-dd');
+      const userId = user.id;
+
+      try {
+        // Load daily totals
+        console.log('Dashboard: Loading daily totals...');
+        const totals = await db.getDailyTotals(userId, dateStr);
+        setDailyTotals(totals);
+
+        // Load meals
+        console.log('Dashboard: Loading meals...');
+        const dailyMeals = await db.getDailyMeals(userId, dateStr);
+        setMeals(dailyMeals);
+
+        // Load activity data
+        console.log('Dashboard: Loading activity data...');
+        const activity = await db.getActivityData(userId, dateStr);
+        if (activity.length > 0) {
+          const combined = activity.reduce((acc, item) => ({
+            activeCalories: acc.activeCalories + (item.active_calories || 0),
+            totalCalories: acc.totalCalories + (item.total_calories || 0),
+            steps: acc.steps + (item.steps || 0)
+          }), { activeCalories: 0, totalCalories: 0, steps: 0 });
+          setActivityData(combined);
+        }
+
+        // Load daily goals
+        console.log('Dashboard: Loading daily goals...');
+        const goals = await db.getDailyGoals(userId, dateStr);
+        if (goals) {
+          setDailyGoals(goals);
+        }
+        
+        console.log('Dashboard: Data loaded successfully');
+        retryCountRef.current = 0;
+        setRetryCount(0);
+        setDataLoadError(null);
+      } catch (error) {
+        console.error('Dashboard: Error loading daily data:', error);
+        
+        if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session') || error.message?.includes('401') || error.message?.includes('403')) {
+          console.log('Dashboard: Authentication error detected, user may need to re-login');
+          setSessionError('Session expired. Please sign in again.');
+        } else if (retryCountRef.current < 3) {
+          retryCountRef.current += 1;
+          setRetryCount(retryCountRef.current);
+          console.log(`Dashboard: Retrying data load (attempt ${retryCountRef.current}/3)`);
+          setTimeout(() => {
+            loadData();
+          }, 2000);
+          return;
+        } else {
+          console.log('Dashboard: Max retries reached, but not a session error');
+          setDataLoadError('Unable to load data. Please check your connection and try again.');
+          setLoading(false);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+
+    return () => clearTimeout(timeoutId);
   }, [user, today])
 
   // Add periodic session check to prevent timeout issues
@@ -153,9 +147,47 @@ const Dashboard = () => {
     return () => clearInterval(sessionCheckInterval)
   }, [user])
 
-  const handleMealLogged = () => {
+  const handleMealLogged = async () => {
     // Refresh dashboard data when a new meal is logged
-    loadDailyData()
+    if (!user) return;
+    
+    console.log('Dashboard: Refreshing data after meal logged');
+    setLoading(true);
+    const dateStr = format(today, 'yyyy-MM-dd');
+    const userId = user.id;
+
+    try {
+      // Load daily totals
+      const totals = await db.getDailyTotals(userId, dateStr);
+      setDailyTotals(totals);
+
+      // Load meals
+      const dailyMeals = await db.getDailyMeals(userId, dateStr);
+      setMeals(dailyMeals);
+
+      // Load activity data
+      const activity = await db.getActivityData(userId, dateStr);
+      if (activity.length > 0) {
+        const combined = activity.reduce((acc, item) => ({
+          activeCalories: acc.activeCalories + (item.active_calories || 0),
+          totalCalories: acc.totalCalories + (item.total_calories || 0),
+          steps: acc.steps + (item.steps || 0)
+        }), { activeCalories: 0, totalCalories: 0, steps: 0 });
+        setActivityData(combined);
+      }
+
+      // Load daily goals
+      const goals = await db.getDailyGoals(userId, dateStr);
+      if (goals) {
+        setDailyGoals(goals);
+      }
+      
+      console.log('Dashboard: Data refreshed successfully');
+    } catch (error) {
+      console.error('Dashboard: Error refreshing data:', error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const handleEditFoodItem = (foodItem) => {
