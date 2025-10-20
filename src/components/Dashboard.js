@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { format } from 'date-fns'
 import { FireIcon, BoltIcon, ArrowTrendingUpIcon, ScaleIcon, CalendarIcon, ArrowPathIcon, PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
@@ -40,6 +40,7 @@ const Dashboard = () => {
   const [sessionError, setSessionError] = useState(null)
   const [showDebugPanel, setShowDebugPanel] = useState(false)
   const [dataLoadError, setDataLoadError] = useState(null)
+  const retryCountRef = useRef(0)
 
   const loadDailyData = useCallback(async () => {
     if (!user) {
@@ -83,7 +84,8 @@ const Dashboard = () => {
       }
       
       console.log('Dashboard: Data loaded successfully');
-      setRetryCount(0); // Reset retry count on successful load
+      retryCountRef.current = 0; // Reset retry count on successful load
+      setRetryCount(0);
       setDataLoadError(null); // Clear any previous errors
         } catch (error) {
           console.error('Dashboard: Error loading daily data:', error);
@@ -93,10 +95,11 @@ const Dashboard = () => {
             console.log('Dashboard: Authentication error detected, user may need to re-login');
             setSessionError('Session expired. Please sign in again.');
             // The AuthContext will handle this automatically via onAuthStateChange
-          } else if (retryCount < 3) {
+          } else if (retryCountRef.current < 3) {
             // Retry for non-auth errors
-            console.log(`Dashboard: Retrying data load (attempt ${retryCount + 1}/3)`);
-            setRetryCount(prev => prev + 1);
+            retryCountRef.current += 1;
+            setRetryCount(retryCountRef.current);
+            console.log(`Dashboard: Retrying data load (attempt ${retryCountRef.current}/3)`);
             setTimeout(() => {
               loadDailyData();
             }, 2000); // Wait 2 seconds before retry
@@ -110,13 +113,13 @@ const Dashboard = () => {
         } finally {
           setLoading(false)
         }
-  }, [user, retryCount, today])
+  }, [user, today])
 
   useEffect(() => {
     if (user) {
       loadDailyData()
     }
-  }, [user, today, loadDailyData])
+  }, [user, today])
 
   // Add periodic session check to prevent timeout issues
   useEffect(() => {
@@ -297,6 +300,7 @@ const Dashboard = () => {
             <button
               onClick={() => {
                 setDataLoadError(null);
+                retryCountRef.current = 0;
                 setRetryCount(0);
                 loadDailyData();
               }}
@@ -399,6 +403,7 @@ const Dashboard = () => {
                     onClick={() => {
                       setSessionError(null);
                       setDataLoadError(null);
+                      retryCountRef.current = 0;
                       setRetryCount(0);
                       loadDailyData();
                     }}
