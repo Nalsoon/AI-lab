@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import { FireIcon, BoltIcon, ArrowTrendingUpIcon, ScaleIcon, CalendarIcon, ArrowPathIcon, PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
@@ -29,7 +29,7 @@ const Dashboard = () => {
     carbs_target: 300,
     fat_target: 100
   })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [showLogFoodModal, setShowLogFoodModal] = useState(false)
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [editingMeal, setEditingMeal] = useState(null)
@@ -42,7 +42,7 @@ const Dashboard = () => {
   const [dataLoadError, setDataLoadError] = useState(null)
   const retryCountRef = useRef(0)
 
-  const loadDailyData = useCallback(async () => {
+  const loadDailyData = async () => {
     if (!user) {
       console.log('Dashboard: No user, skipping data load');
       return
@@ -87,37 +87,50 @@ const Dashboard = () => {
       retryCountRef.current = 0; // Reset retry count on successful load
       setRetryCount(0);
       setDataLoadError(null); // Clear any previous errors
-        } catch (error) {
-          console.error('Dashboard: Error loading daily data:', error);
-          
-          // Check if it's an authentication error
-          if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session') || error.message?.includes('401') || error.message?.includes('403')) {
-            console.log('Dashboard: Authentication error detected, user may need to re-login');
-            setSessionError('Session expired. Please sign in again.');
-            // The AuthContext will handle this automatically via onAuthStateChange
-          } else if (retryCountRef.current < 3) {
-            // Retry for non-auth errors
-            retryCountRef.current += 1;
-            setRetryCount(retryCountRef.current);
-            console.log(`Dashboard: Retrying data load (attempt ${retryCountRef.current}/3)`);
-            setTimeout(() => {
-              loadDailyData();
-            }, 2000); // Wait 2 seconds before retry
-            return; // Don't set loading to false yet
-          } else {
-            // Only show session error for persistent failures, not temporary network issues
-            console.log('Dashboard: Max retries reached, but not a session error');
-            setDataLoadError('Unable to load data. Please check your connection and try again.');
-            setLoading(false);
-          }
-        } finally {
-          setLoading(false)
-        }
-  }, [user, today])
+    } catch (error) {
+      console.error('Dashboard: Error loading daily data:', error);
+      
+      // Check if it's an authentication error
+      if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session') || error.message?.includes('401') || error.message?.includes('403')) {
+        console.log('Dashboard: Authentication error detected, user may need to re-login');
+        setSessionError('Session expired. Please sign in again.');
+        // The AuthContext will handle this automatically via onAuthStateChange
+      } else if (retryCountRef.current < 3) {
+        // Retry for non-auth errors
+        retryCountRef.current += 1;
+        setRetryCount(retryCountRef.current);
+        console.log(`Dashboard: Retrying data load (attempt ${retryCountRef.current}/3)`);
+        setTimeout(() => {
+          loadDailyData();
+        }, 2000); // Wait 2 seconds before retry
+        return; // Don't set loading to false yet
+      } else {
+        // Only show session error for persistent failures, not temporary network issues
+        console.log('Dashboard: Max retries reached, but not a session error');
+        setDataLoadError('Unable to load data. Please check your connection and try again.');
+        setLoading(false);
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (user) {
-      loadDailyData()
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        if (loading) {
+          console.log('Dashboard: Loading timeout, setting loading to false');
+          setLoading(false);
+          setDataLoadError('Loading timed out. Please try refreshing the page.');
+        }
+      }, 10000); // 10 second timeout
+
+      loadDailyData();
+
+      return () => clearTimeout(timeoutId);
+    } else {
+      setLoading(false);
     }
   }, [user, today])
 
