@@ -147,11 +147,10 @@ const Dashboard = () => {
     return () => clearInterval(sessionCheckInterval)
   }, [user])
 
-  const handleMealLogged = async () => {
-    // Refresh dashboard data when a new meal is logged
+  const refreshData = async () => {
     if (!user) return;
     
-    console.log('Dashboard: Refreshing data after meal logged');
+    console.log('Dashboard: Refreshing data');
     setLoading(true);
     const dateStr = format(today, 'yyyy-MM-dd');
     const userId = user.id;
@@ -190,6 +189,11 @@ const Dashboard = () => {
     }
   }
 
+  const handleMealLogged = async () => {
+    // Refresh dashboard data when a new meal is logged
+    await refreshData();
+  }
+
   const handleEditFoodItem = (foodItem) => {
     setEditingFoodItem(foodItem)
     setShowFoodItemEditModal(true)
@@ -207,7 +211,7 @@ const Dashboard = () => {
     )
 
     // Recalculate totals
-    loadDailyData()
+    refreshData()
     setShowFoodItemEditModal(false)
     setEditingFoodItem(null)
   }
@@ -222,7 +226,7 @@ const Dashboard = () => {
     )
 
     // Recalculate totals
-    loadDailyData()
+    refreshData()
     setShowFoodItemEditModal(false)
     setEditingFoodItem(null)
   }
@@ -247,7 +251,7 @@ const Dashboard = () => {
       await db.delete('meals', mealId)
       
       // Refresh data
-      await loadDailyData()
+      await refreshData()
     } catch (error) {
       console.error('Error deleting meal:', error)
       alert('Failed to delete meal. Please try again.')
@@ -256,7 +260,7 @@ const Dashboard = () => {
 
   const handleGoalSaved = () => {
     // Refresh dashboard data when goals are updated
-    loadDailyData()
+    refreshData()
   }
 
   const handleEditMeal = (meal) => {
@@ -308,7 +312,7 @@ const Dashboard = () => {
         onRetry={() => {
           setSessionError(null);
           setRetryCount(0);
-          loadDailyData();
+          refreshData();
         }}
         onSignOut={() => {
           // Clear session error and let AuthContext handle sign out
@@ -347,7 +351,7 @@ const Dashboard = () => {
                 setDataLoadError(null);
                 retryCountRef.current = 0;
                 setRetryCount(0);
-                loadDailyData();
+                refreshData();
               }}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
@@ -450,7 +454,7 @@ const Dashboard = () => {
                       setDataLoadError(null);
                       retryCountRef.current = 0;
                       setRetryCount(0);
-                      loadDailyData();
+                      refreshData();
                     }}
                     className="px-2 py-1 bg-blue-200 text-blue-800 rounded hover:bg-blue-300"
                   >
