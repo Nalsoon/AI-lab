@@ -396,7 +396,7 @@ const Dashboard = () => {
             Set Goals
           </button>
           <button
-            onClick={loadDailyData}
+            onClick={refreshData}
             disabled={loading}
             style={{
               display: 'flex',
