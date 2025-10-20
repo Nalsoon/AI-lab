@@ -4,6 +4,7 @@ import { FireIcon, BoltIcon, ArrowTrendingUpIcon, ScaleIcon, CalendarIcon, Arrow
 import { useAuth } from '../contexts/AuthContext'
 import { db } from '../lib/supabase'
 import LogFoodModal from './LogFoodModal'
+import FoodItemEditModal from './FoodItemEditModal'
 
 const Dashboard = () => {
   const { user } = useAuth()
@@ -28,6 +29,10 @@ const Dashboard = () => {
   })
   const [showLogFoodModal, setShowLogFoodModal] = useState(false)
   const [showGoalModal, setShowGoalModal] = useState(false)
+  const [editingMeal, setEditingMeal] = useState(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingFoodItem, setEditingFoodItem] = useState(null)
+  const [showFoodItemEditModal, setShowFoodItemEditModal] = useState(false)
 
 
   useEffect(() => {
@@ -251,16 +256,15 @@ const Dashboard = () => {
           </button>
           <button
             onClick={refreshData}
-            disabled={loading}
             style={{
               display: 'flex',
               alignItems: 'center',
               padding: '0.5rem',
-              backgroundColor: loading ? '#9ca3af' : '#3b82f6',
+              backgroundColor: '#3b82f6',
               color: 'white',
               border: 'none',
               borderRadius: '0.375rem',
-              cursor: loading ? 'not-allowed' : 'pointer',
+              cursor: 'pointer',
               transition: 'background-color 0.15s ease-in-out'
             }}
             title="Refresh data"
