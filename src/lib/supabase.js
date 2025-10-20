@@ -278,5 +278,77 @@ export const db = {
 
     if (error) throw error
     return data
+  },
+
+  // Food corrections functions
+  async getFoodCorrections(userId, foodName = null) {
+    let query = supabase
+      .from('food_corrections')
+      .select('*')
+      .eq('user_id', userId)
+    
+    if (foodName) {
+      query = query.eq('food_name', foodName)
+    }
+    
+    const { data, error } = await query
+    if (error) throw error
+    return data
+  },
+
+  async saveFoodCorrection(userId, correctionData) {
+    const { data, error } = await supabase
+      .from('food_corrections')
+      .upsert({
+        user_id: userId,
+        ...correctionData,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async deleteFoodCorrection(userId, foodName) {
+    const { error } = await supabase
+      .from('food_corrections')
+      .delete()
+      .eq('user_id', userId)
+      .eq('food_name', foodName)
+
+    if (error) throw error
+  },
+
+  async applyCorrectionsToFoodItems(userId, foodItems) {
+    // Get all corrections for this user
+    const corrections = await this.getFoodCorrections(userId)
+    
+    // Create a map for quick lookup
+    const correctionMap = new Map()
+    corrections.forEach(correction => {
+      correctionMap.set(correction.food_name.toLowerCase(), correction)
+    })
+
+    // Apply corrections to food items
+    return foodItems.map(item => {
+      const correction = correctionMap.get(item.name.toLowerCase())
+      if (correction) {
+        return {
+          ...item,
+          calories: correction.corrected_calories || item.calories,
+          protein: correction.corrected_protein || item.protein,
+          carbs: correction.corrected_carbs || item.carbs,
+          fat: correction.corrected_fat || item.fat,
+          has_correction: true,
+          original_calories: item.calories,
+          original_protein: item.protein,
+          original_carbs: item.carbs,
+          original_fat: item.fat
+        }
+      }
+      return item
+    })
   }
 }

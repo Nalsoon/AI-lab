@@ -4,6 +4,7 @@ import { FireIcon, BoltIcon, ArrowTrendingUpIcon, ScaleIcon, CalendarIcon, Arrow
 import { useAuth } from '../contexts/AuthContext'
 import { db, supabase } from '../lib/supabase'
 import LogFoodModal from './LogFoodModal'
+import FoodItemEditModal from './FoodItemEditModal'
 
 const Dashboard = () => {
   const { user } = useAuth()
@@ -32,6 +33,8 @@ const Dashboard = () => {
   const [editingMeal, setEditingMeal] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [editingFoodItem, setEditingFoodItem] = useState(null)
+  const [showFoodItemEditModal, setShowFoodItemEditModal] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -125,6 +128,43 @@ const Dashboard = () => {
   const handleMealLogged = () => {
     // Refresh dashboard data when a new meal is logged
     loadDailyData()
+  }
+
+  const handleEditFoodItem = (foodItem) => {
+    setEditingFoodItem(foodItem)
+    setShowFoodItemEditModal(true)
+  }
+
+  const handleFoodItemSaved = (updatedItem) => {
+    // Update the food item in the current meal
+    setMeals(prevMeals => 
+      prevMeals.map(meal => ({
+        ...meal,
+        food_items: meal.food_items.map(item => 
+          item.id === updatedItem.id ? updatedItem : item
+        )
+      }))
+    )
+
+    // Recalculate totals
+    loadDailyData()
+    setShowFoodItemEditModal(false)
+    setEditingFoodItem(null)
+  }
+
+  const handleFoodItemDeleted = (foodItemId) => {
+    // Remove the food item from the current meal
+    setMeals(prevMeals => 
+      prevMeals.map(meal => ({
+        ...meal,
+        food_items: meal.food_items.filter(item => item.id !== foodItemId)
+      }))
+    )
+
+    // Recalculate totals
+    loadDailyData()
+    setShowFoodItemEditModal(false)
+    setEditingFoodItem(null)
   }
 
   const handleDeleteMeal = async (mealId) => {
@@ -419,9 +459,25 @@ const Dashboard = () => {
                     </div>
                     <ul className="ml-4 mt-2 space-y-1 text-sm text-gray-600">
                       {meal.food_items?.map(item => (
-                        <li key={item.id} className="flex justify-between">
-                          <span>{item.name} ({item.quantity} {item.unit})</span>
-                          <span>{item.calories} kcal</span>
+                        <li key={item.id} className="flex justify-between items-center group">
+                          <div className="flex-1">
+                            <span className={item.has_correction ? 'text-blue-600 font-medium' : ''}>
+                              {item.name} ({item.quantity} {item.unit})
+                            </span>
+                            {item.has_correction && (
+                              <span className="ml-2 text-xs text-blue-500">(corrected)</span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span>{item.calories} kcal</span>
+                            <button
+                              onClick={() => handleEditFoodItem(item)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
+                              title="Edit food item"
+                            >
+                              <PencilIcon className="h-3 w-3" />
+                            </button>
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -457,6 +513,18 @@ const Dashboard = () => {
         isOpen={showLogFoodModal}
         onClose={() => setShowLogFoodModal(false)}
         onMealLogged={handleMealLogged}
+      />
+
+      {/* Food Item Edit Modal */}
+      <FoodItemEditModal
+        isOpen={showFoodItemEditModal}
+        onClose={() => {
+          setShowFoodItemEditModal(false)
+          setEditingFoodItem(null)
+        }}
+        foodItem={editingFoodItem}
+        onSave={handleFoodItemSaved}
+        onDelete={handleFoodItemDeleted}
       />
 
       {/* Goal Setting Modal */}

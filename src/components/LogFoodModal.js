@@ -45,7 +45,7 @@ const LogFoodModal = ({ isOpen, onClose, onMealLogged }) => {
       console.log('🍽️ Food items breakdown:', aiResult.food_items);
 
       // Process food items with AI data
-      const processedFoodItems = aiResult.food_items.map(item => ({
+      let processedFoodItems = aiResult.food_items.map(item => ({
         ...item,
         ai_data: {
           confidence_score: aiResult.confidence_score || 0.5,
@@ -54,6 +54,17 @@ const LogFoodModal = ({ isOpen, onClose, onMealLogged }) => {
           user_confirmed: false
         }
       }));
+
+      // Apply user corrections to food items
+      if (user) {
+        try {
+          processedFoodItems = await db.applyCorrectionsToFoodItems(user.id, processedFoodItems);
+          console.log('✅ Applied user corrections to food items');
+        } catch (error) {
+          console.warn('⚠️ Could not apply corrections:', error);
+          // Continue without corrections if there's an error
+        }
+      }
 
       console.log('📋 Processed food items:', processedFoodItems);
 
