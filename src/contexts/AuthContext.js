@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useSessionManager } from '../hooks/useSessionManager';
 
 const AuthContext = createContext({});
 
@@ -15,6 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { isSessionValid, sessionError, startSessionMonitoring, stopSessionMonitoring } = useSessionManager();
 
   useEffect(() => {
     console.log('AuthContext: Getting initial session...')
@@ -31,6 +33,7 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         console.log('AuthContext: User found, loading profile...');
         loadUserProfile(session.user.id);
+        startSessionMonitoring();
       } else {
         console.log('AuthContext: No user, setting loading false');
         setLoading(false);
@@ -72,10 +75,21 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+        return () => {
+          subscription.unsubscribe();
+          stopSessionMonitoring();
+        };
+      }, []);
+
+      // Handle session validation
+      useEffect(() => {
+        if (!isSessionValid && user) {
+          console.log('AuthContext: Session invalid, signing out user');
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+        }
+      }, [isSessionValid, user]);
 
   const loadUserProfile = async (userId) => {
     console.log('AuthContext: Loading profile for user:', userId);

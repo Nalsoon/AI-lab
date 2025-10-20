@@ -171,35 +171,6 @@ const LogFoodModal = ({ isOpen, onClose, onMealLogged }) => {
     onClose();
   };
 
-  const handleEditItem = (index, field, value) => {
-    setResult(prev => ({
-      ...prev,
-      food_items: prev.food_items.map((item, i) => 
-        i === index ? { ...item, [field]: parseFloat(value) || 0 } : item
-      )
-    }));
-
-    // Recalculate totals
-    const updatedItems = result.food_items.map((item, i) => 
-      i === index ? { ...item, [field]: parseFloat(value) || 0 } : item
-    );
-    
-    const newTotals = updatedItems.reduce((totals, item) => ({
-      calories: totals.calories + (parseFloat(item.calories) || 0),
-      protein: totals.protein + (parseFloat(item.protein) || 0),
-      carbs: totals.carbs + (parseFloat(item.carbs) || 0),
-      fat: totals.fat + (parseFloat(item.fat) || 0)
-    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-
-    setResult(prev => ({
-      ...prev,
-      food_items: updatedItems,
-      total_calories: newTotals.calories,
-      total_protein: newTotals.protein,
-      total_carbs: newTotals.carbs,
-      total_fat: newTotals.fat
-    }));
-  };
 
   const handleDeleteItem = (index) => {
     const updatedItems = result.food_items.filter((_, i) => i !== index);

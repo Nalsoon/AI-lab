@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { format } from 'date-fns'
 import { FireIcon, BoltIcon, ArrowTrendingUpIcon, ScaleIcon, CalendarIcon, ArrowPathIcon, PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
 import { db, supabase } from '../lib/supabase'
 import LogFoodModal from './LogFoodModal'
 import FoodItemEditModal from './FoodItemEditModal'
+import SessionErrorBoundary from './SessionErrorBoundary'
+import { clearAppCache, clearSupabaseCache, getCacheInfo } from '../utils/cacheUtils'
 
 const Dashboard = () => {
   const { user } = useAuth()
-  const [today, setToday] = useState(new Date())
+  const [today] = useState(new Date())
   const [dailyTotals, setDailyTotals] = useState({
     calories: 0,
     protein: 0,
@@ -35,12 +37,14 @@ const Dashboard = () => {
   const [retryCount, setRetryCount] = useState(0)
   const [editingFoodItem, setEditingFoodItem] = useState(null)
   const [showFoodItemEditModal, setShowFoodItemEditModal] = useState(false)
+  const [sessionError, setSessionError] = useState(null)
+  const [showDebugPanel, setShowDebugPanel] = useState(false)
 
   useEffect(() => {
     if (user) {
       loadDailyData()
     }
-  }, [user, today])
+  }, [user, today, loadDailyData])
 
   // Add periodic session check to prevent timeout issues
   useEffect(() => {
@@ -61,7 +65,7 @@ const Dashboard = () => {
     return () => clearInterval(sessionCheckInterval)
   }, [user])
 
-  const loadDailyData = async () => {
+  const loadDailyData = useCallback(async () => {
     if (!user) {
       console.log('Dashboard: No user, skipping data load');
       return
@@ -104,26 +108,29 @@ const Dashboard = () => {
       
       console.log('Dashboard: Data loaded successfully');
       setRetryCount(0); // Reset retry count on successful load
-    } catch (error) {
-      console.error('Dashboard: Error loading daily data:', error);
-      
-      // Check if it's an authentication error
-      if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session')) {
-        console.log('Dashboard: Authentication error detected, user may need to re-login');
-        // The AuthContext will handle this automatically via onAuthStateChange
-      } else if (retryCount < 3) {
-        // Retry for non-auth errors
-        console.log(`Dashboard: Retrying data load (attempt ${retryCount + 1}/3)`);
-        setRetryCount(prev => prev + 1);
-        setTimeout(() => {
-          loadDailyData();
-        }, 2000); // Wait 2 seconds before retry
-        return; // Don't set loading to false yet
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
+        } catch (error) {
+          console.error('Dashboard: Error loading daily data:', error);
+          
+          // Check if it's an authentication error
+          if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session')) {
+            console.log('Dashboard: Authentication error detected, user may need to re-login');
+            setSessionError('Session expired. Please sign in again.');
+            // The AuthContext will handle this automatically via onAuthStateChange
+          } else if (retryCount < 3) {
+            // Retry for non-auth errors
+            console.log(`Dashboard: Retrying data load (attempt ${retryCount + 1}/3)`);
+            setRetryCount(prev => prev + 1);
+            setTimeout(() => {
+              loadDailyData();
+            }, 2000); // Wait 2 seconds before retry
+            return; // Don't set loading to false yet
+          } else {
+            setSessionError('Failed to load data after multiple attempts. Please try refreshing the page.');
+          }
+        } finally {
+          setLoading(false)
+        }
+  }, [user, retryCount])
 
   const handleMealLogged = () => {
     // Refresh dashboard data when a new meal is logged
@@ -265,6 +272,23 @@ const Dashboard = () => {
     </div>
   )
 
+  if (sessionError) {
+    return (
+      <SessionErrorBoundary 
+        error={sessionError}
+        onRetry={() => {
+          setSessionError(null);
+          setRetryCount(0);
+          loadDailyData();
+        }}
+        onSignOut={() => {
+          // Clear session error and let AuthContext handle sign out
+          setSessionError(null);
+        }}
+      />
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -278,6 +302,14 @@ const Dashboard = () => {
     <div style={{ padding: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827' }}>Dashboard</h1>
+        {process.env.NODE_ENV === 'development' && (
+          <button
+            onClick={() => setShowDebugPanel(!showDebugPanel)}
+            className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+          >
+            {showDebugPanel ? 'Hide' : 'Show'} Debug
+          </button>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button
             onClick={() => setShowGoalModal(true)}
@@ -322,6 +354,48 @@ const Dashboard = () => {
           </p>
         </div>
       </div>
+
+      {/* Debug Panel */}
+      {showDebugPanel && process.env.NODE_ENV === 'development' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <h3 className="text-sm font-medium text-yellow-800 mb-2">Debug Panel</h3>
+          <div className="space-y-2 text-xs">
+            <div>Retry Count: {retryCount}</div>
+            <div>Session Error: {sessionError || 'None'}</div>
+            <div>Cache Info: {JSON.stringify(getCacheInfo())}</div>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => {
+                  clearSupabaseCache();
+                  console.log('Supabase cache cleared');
+                }}
+                className="px-2 py-1 bg-yellow-200 text-yellow-800 rounded hover:bg-yellow-300"
+              >
+                Clear Supabase Cache
+              </button>
+              <button
+                onClick={() => {
+                  clearAppCache();
+                  console.log('App cache cleared');
+                }}
+                className="px-2 py-1 bg-red-200 text-red-800 rounded hover:bg-red-300"
+              >
+                Clear All Cache
+              </button>
+              <button
+                onClick={() => {
+                  setSessionError(null);
+                  setRetryCount(0);
+                  loadDailyData();
+                }}
+                className="px-2 py-1 bg-blue-200 text-blue-800 rounded hover:bg-blue-300"
+              >
+                Retry Data Load
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Log Food Call-to-Action */}
       <div style={{ 
