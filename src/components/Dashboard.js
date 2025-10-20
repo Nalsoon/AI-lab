@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { FireIcon, BoltIcon, ArrowTrendingUpIcon, ScaleIcon, CalendarIcon, ArrowPathIcon, PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
-import { db, supabase } from '../lib/supabase'
+import { db } from '../lib/supabase'
 import LogFoodModal from './LogFoodModal'
-import FoodItemEditModal from './FoodItemEditModal'
-import SessionErrorBoundary from './SessionErrorBoundary'
-import { clearAppCache, clearSupabaseCache, getCacheInfo } from '../utils/cacheUtils'
 
 const Dashboard = () => {
   const { user } = useAuth()
@@ -29,56 +26,30 @@ const Dashboard = () => {
     carbs_target: 300,
     fat_target: 100
   })
-  const [loading, setLoading] = useState(true)
   const [showLogFoodModal, setShowLogFoodModal] = useState(false)
   const [showGoalModal, setShowGoalModal] = useState(false)
-  const [editingMeal, setEditingMeal] = useState(null)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [retryCount, setRetryCount] = useState(0)
-  const [editingFoodItem, setEditingFoodItem] = useState(null)
-  const [showFoodItemEditModal, setShowFoodItemEditModal] = useState(false)
-  const [sessionError, setSessionError] = useState(null)
-  const [showDebugPanel, setShowDebugPanel] = useState(false)
-  const [dataLoadError, setDataLoadError] = useState(null)
-  const retryCountRef = useRef(0)
 
 
   useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) return;
 
-    // Set a timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      if (loading) {
-        console.log('Dashboard: Loading timeout, setting loading to false');
-        setLoading(false);
-        setDataLoadError('Loading timed out. Please try refreshing the page.');
-      }
-    }, 10000); // 10 second timeout
-
-    // Load data directly in useEffect to avoid circular dependencies
     const loadData = async () => {
-      console.log('Dashboard: Loading daily data for user:', user.id);
-      setLoading(true);
-      const dateStr = format(today, 'yyyy-MM-dd');
-      const userId = user.id;
-
       try {
-        // Load daily totals
-        console.log('Dashboard: Loading daily totals...');
-        const totals = await db.getDailyTotals(userId, dateStr);
-        setDailyTotals(totals);
+        const dateStr = format(today, 'yyyy-MM-dd');
+        const userId = user.id;
 
-        // Load meals
-        console.log('Dashboard: Loading meals...');
-        const dailyMeals = await db.getDailyMeals(userId, dateStr);
+        // Load all data in parallel
+        const [totals, dailyMeals, activity, goals] = await Promise.all([
+          db.getDailyTotals(userId, dateStr),
+          db.getDailyMeals(userId, dateStr),
+          db.getActivityData(userId, dateStr),
+          db.getDailyGoals(userId, dateStr)
+        ]);
+
+        setDailyTotals(totals);
         setMeals(dailyMeals);
 
-        // Load activity data
-        console.log('Dashboard: Loading activity data...');
-        const activity = await db.getActivityData(userId, dateStr);
+        // Process activity data
         if (activity.length > 0) {
           const combined = activity.reduce((acc, item) => ({
             activeCalories: acc.activeCalories + (item.active_calories || 0),
@@ -88,84 +59,38 @@ const Dashboard = () => {
           setActivityData(combined);
         }
 
-        // Load daily goals
-        console.log('Dashboard: Loading daily goals...');
-        const goals = await db.getDailyGoals(userId, dateStr);
         if (goals) {
           setDailyGoals(goals);
         }
-        
-        console.log('Dashboard: Data loaded successfully');
-        retryCountRef.current = 0;
-        setRetryCount(0);
-        setDataLoadError(null);
       } catch (error) {
-        console.error('Dashboard: Error loading daily data:', error);
-        
-        if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session') || error.message?.includes('401') || error.message?.includes('403')) {
-          console.log('Dashboard: Authentication error detected, user may need to re-login');
-          setSessionError('Session expired. Please sign in again.');
-        } else if (retryCountRef.current < 3) {
-          retryCountRef.current += 1;
-          setRetryCount(retryCountRef.current);
-          console.log(`Dashboard: Retrying data load (attempt ${retryCountRef.current}/3)`);
-          setTimeout(() => {
-            loadData();
-          }, 2000);
-          return;
-        } else {
-          console.log('Dashboard: Max retries reached, but not a session error');
-          setDataLoadError('Unable to load data. Please check your connection and try again.');
-          setLoading(false);
-        }
-      } finally {
-        setLoading(false);
+        console.error('Error loading dashboard data:', error);
+        // Just log the error, don't show loading screens
       }
     };
 
     loadData();
-
-    return () => clearTimeout(timeoutId);
   }, [user, today])
 
-  // Add periodic session check to prevent timeout issues
-  useEffect(() => {
-    if (!user) return
-
-    const sessionCheckInterval = setInterval(async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-          console.log('Dashboard: Session expired, user will be redirected to login')
-          // The AuthContext will handle this automatically
-        }
-      } catch (error) {
-        console.error('Dashboard: Session check failed:', error)
-      }
-    }, 30000) // Check every 30 seconds
-
-    return () => clearInterval(sessionCheckInterval)
-  }, [user])
 
   const refreshData = async () => {
     if (!user) return;
     
-    console.log('Dashboard: Refreshing data');
-    setLoading(true);
-    const dateStr = format(today, 'yyyy-MM-dd');
-    const userId = user.id;
-
     try {
-      // Load daily totals
-      const totals = await db.getDailyTotals(userId, dateStr);
-      setDailyTotals(totals);
+      const dateStr = format(today, 'yyyy-MM-dd');
+      const userId = user.id;
 
-      // Load meals
-      const dailyMeals = await db.getDailyMeals(userId, dateStr);
+      // Load all data in parallel
+      const [totals, dailyMeals, activity, goals] = await Promise.all([
+        db.getDailyTotals(userId, dateStr),
+        db.getDailyMeals(userId, dateStr),
+        db.getActivityData(userId, dateStr),
+        db.getDailyGoals(userId, dateStr)
+      ]);
+
+      setDailyTotals(totals);
       setMeals(dailyMeals);
 
-      // Load activity data
-      const activity = await db.getActivityData(userId, dateStr);
+      // Process activity data
       if (activity.length > 0) {
         const combined = activity.reduce((acc, item) => ({
           activeCalories: acc.activeCalories + (item.active_calories || 0),
@@ -175,17 +100,11 @@ const Dashboard = () => {
         setActivityData(combined);
       }
 
-      // Load daily goals
-      const goals = await db.getDailyGoals(userId, dateStr);
       if (goals) {
         setDailyGoals(goals);
       }
-      
-      console.log('Dashboard: Data refreshed successfully');
     } catch (error) {
-      console.error('Dashboard: Error refreshing data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error refreshing data:', error);
     }
   }
 
@@ -305,76 +224,11 @@ const Dashboard = () => {
     </div>
   )
 
-  if (sessionError) {
-    return (
-      <SessionErrorBoundary 
-        error={sessionError}
-        onRetry={() => {
-          setSessionError(null);
-          setRetryCount(0);
-          refreshData();
-        }}
-        onSignOut={() => {
-          // Clear session error and let AuthContext handle sign out
-          setSessionError(null);
-        }}
-      />
-    )
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <p className="ml-4 text-gray-600">Loading daily data...</p>
-      </div>
-    )
-  }
-
-  if (dataLoadError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8">
-          <div className="text-center">
-            <div className="mx-auto h-12 w-12 text-yellow-500">⚠️</div>
-            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-              Data Loading Issue
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              {dataLoadError}
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <button
-              onClick={() => {
-                setDataLoadError(null);
-                retryCountRef.current = 0;
-                setRetryCount(0);
-                refreshData();
-              }}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div style={{ padding: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827' }}>Dashboard</h1>
-        {process.env.NODE_ENV === 'development' && (
-          <button
-            onClick={() => setShowDebugPanel(!showDebugPanel)}
-            className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
-          >
-            {showDebugPanel ? 'Hide' : 'Show'} Debug
-          </button>
-        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button
             onClick={() => setShowGoalModal(true)}
@@ -420,50 +274,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Debug Panel */}
-      {showDebugPanel && process.env.NODE_ENV === 'development' && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <h3 className="text-sm font-medium text-yellow-800 mb-2">Debug Panel</h3>
-              <div className="space-y-2 text-xs">
-                <div>Retry Count: {retryCount}</div>
-                <div>Session Error: {sessionError || 'None'}</div>
-                <div>Data Load Error: {dataLoadError || 'None'}</div>
-                <div>Cache Info: {JSON.stringify(getCacheInfo())}</div>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => {
-                  clearSupabaseCache();
-                  console.log('Supabase cache cleared');
-                }}
-                className="px-2 py-1 bg-yellow-200 text-yellow-800 rounded hover:bg-yellow-300"
-              >
-                Clear Supabase Cache
-              </button>
-              <button
-                onClick={() => {
-                  clearAppCache();
-                  console.log('App cache cleared');
-                }}
-                className="px-2 py-1 bg-red-200 text-red-800 rounded hover:bg-red-300"
-              >
-                Clear All Cache
-              </button>
-                  <button
-                    onClick={() => {
-                      setSessionError(null);
-                      setDataLoadError(null);
-                      retryCountRef.current = 0;
-                      setRetryCount(0);
-                      refreshData();
-                    }}
-                    className="px-2 py-1 bg-blue-200 text-blue-800 rounded hover:bg-blue-300"
-                  >
-                    Retry Data Load
-                  </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Log Food Call-to-Action */}
       <div style={{ 
