@@ -39,6 +39,7 @@ const Dashboard = () => {
   const [showFoodItemEditModal, setShowFoodItemEditModal] = useState(false)
   const [sessionError, setSessionError] = useState(null)
   const [showDebugPanel, setShowDebugPanel] = useState(false)
+  const [dataLoadError, setDataLoadError] = useState(null)
 
   const loadDailyData = useCallback(async () => {
     if (!user) {
@@ -83,11 +84,12 @@ const Dashboard = () => {
       
       console.log('Dashboard: Data loaded successfully');
       setRetryCount(0); // Reset retry count on successful load
+      setDataLoadError(null); // Clear any previous errors
         } catch (error) {
           console.error('Dashboard: Error loading daily data:', error);
           
           // Check if it's an authentication error
-          if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session')) {
+          if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('session') || error.message?.includes('401') || error.message?.includes('403')) {
             console.log('Dashboard: Authentication error detected, user may need to re-login');
             setSessionError('Session expired. Please sign in again.');
             // The AuthContext will handle this automatically via onAuthStateChange
@@ -100,7 +102,10 @@ const Dashboard = () => {
             }, 2000); // Wait 2 seconds before retry
             return; // Don't set loading to false yet
           } else {
-            setSessionError('Failed to load data after multiple attempts. Please try refreshing the page.');
+            // Only show session error for persistent failures, not temporary network issues
+            console.log('Dashboard: Max retries reached, but not a session error');
+            setDataLoadError('Unable to load data. Please check your connection and try again.');
+            setLoading(false);
           }
         } finally {
           setLoading(false)
@@ -274,6 +279,37 @@ const Dashboard = () => {
     )
   }
 
+  if (dataLoadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="mx-auto h-12 w-12 text-yellow-500">⚠️</div>
+            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+              Data Loading Issue
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {dataLoadError}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <button
+              onClick={() => {
+                setDataLoadError(null);
+                setRetryCount(0);
+                loadDailyData();
+              }}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ padding: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
@@ -335,10 +371,11 @@ const Dashboard = () => {
       {showDebugPanel && process.env.NODE_ENV === 'development' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
           <h3 className="text-sm font-medium text-yellow-800 mb-2">Debug Panel</h3>
-          <div className="space-y-2 text-xs">
-            <div>Retry Count: {retryCount}</div>
-            <div>Session Error: {sessionError || 'None'}</div>
-            <div>Cache Info: {JSON.stringify(getCacheInfo())}</div>
+              <div className="space-y-2 text-xs">
+                <div>Retry Count: {retryCount}</div>
+                <div>Session Error: {sessionError || 'None'}</div>
+                <div>Data Load Error: {dataLoadError || 'None'}</div>
+                <div>Cache Info: {JSON.stringify(getCacheInfo())}</div>
             <div className="flex space-x-2">
               <button
                 onClick={() => {
@@ -358,16 +395,17 @@ const Dashboard = () => {
               >
                 Clear All Cache
               </button>
-              <button
-                onClick={() => {
-                  setSessionError(null);
-                  setRetryCount(0);
-                  loadDailyData();
-                }}
-                className="px-2 py-1 bg-blue-200 text-blue-800 rounded hover:bg-blue-300"
-              >
-                Retry Data Load
-              </button>
+                  <button
+                    onClick={() => {
+                      setSessionError(null);
+                      setDataLoadError(null);
+                      setRetryCount(0);
+                      loadDailyData();
+                    }}
+                    className="px-2 py-1 bg-blue-200 text-blue-800 rounded hover:bg-blue-300"
+                  >
+                    Retry Data Load
+                  </button>
             </div>
           </div>
         </div>
